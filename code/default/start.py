@@ -68,9 +68,6 @@ def run_subprocess(commands, sleep_time = 1):
 # Define a function for synchronizing the time
 def synchronize_time():    
 
-    # Install network time protocol date application
-    run_subprocess(['sudo', 'apt-get', 'install', '-y', 'ntpdate'])
-
     # Set system time using a network time protocol server
     run_subprocess(['sudo', 'ntpdate', '-u', '3.kr.pool.ntp.org'])
 
@@ -95,14 +92,17 @@ def create_and_upload_file(DATE_STRING, command, filename_prefix):
 
 # Define a function for uploading system information on cloud storage
 def upload_cloud(DATE_STRING):
-    print('Start upload on cloud')
+    try:
+        print('Start upload on cloud')
 
-    os.makedirs(PATH_STATS, exist_ok=True)
+        os.makedirs(PATH_STATS, exist_ok=True)
 
-    create_and_upload_file(DATE_STRING, ['df', '-h'], 'storage')
-    create_and_upload_file(DATE_STRING, ['ls', '-alh'], 'list')
+        create_and_upload_file(DATE_STRING, ['df', '-h'], 'storage')
+        create_and_upload_file(DATE_STRING, ['ls', '-alh'], 'list')
 
-    print('Finish upload on cloud')
+        print('Finish upload on cloud')
+    except Exception as e:
+        print(f'Failed to upload on cloud: {str(e)}')
 
 
 # Set channels to sensing WiFi

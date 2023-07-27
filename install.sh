@@ -61,7 +61,8 @@ fi
 if [ ! -d "/home/pi/Bluelog" ]; then
   # Clone Bluelog from GitHub
   echo "Cloning Bluelog from GitHub..."
-  git clone https://github.com/MS3FGX/Bluelog.git
+  cd /home/pi
+  git clone https://github.com/jhyeonpark/Bluelog.git
 
   # Change into the Bluelog directory
   cd Bluelog

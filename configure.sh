@@ -24,24 +24,24 @@ After=network.target
 
 [Service]
 WorkingDirectory=/home/pi/
-ExecStart=/usr/bin/python3 /home/pi/urban-sensing-raspi/start.py
+ExecStart=/usr/bin/python3 /home/pi/urban-sensing-raspi/default/start.py
 User=root
 Group=root
 
 [Install]
-WantedBy=multi-user.target" | sudo tee /lib/systemd/system/urban_sensing.service
+WantedBy=multi-user.target" | sudo tee /lib/systemd/system/sensing.service
 
 # Set permissions for the service file
-sudo chmod 644 /lib/systemd/system/urban_sensing.service
+sudo chmod 644 /lib/systemd/system/sensing.service
 
 # Reload the systemd daemon
 sudo systemctl daemon-reload
 
 # Enable the service to start on boot
-sudo systemctl enable urban_sensing.service
+sudo systemctl enable sensing.service
 
 # Start the service
-sudo systemctl start urban_sensing.service
+sudo systemctl start sensing.service
 
 # Print a message when finished
-echo "Script execution finished. Urban monitoring service has been set up and started."
+echo "Script execution finished. The Sensing.service has been set up and started."
