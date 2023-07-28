@@ -98,7 +98,7 @@ def create_and_upload_file(DATE_STRING, command, filename_prefix):
 # Define a function for uploading system information on cloud storage
 def upload_cloud(DATE_STRING):
     try:
-        print('Start upload on cloud')
+        print(f'************** Upload system information on cloud storage')
 
         os.makedirs(PATH_STATS, exist_ok=True)
 
@@ -301,18 +301,20 @@ def collect_wifi(interface, channel):
 
 # Define a function for collecting bluetooth
 def collect_bluetooth(DATE_STRING):
+    
     if not os.path.exists(PATH_DATA):
         os.makedirs(PATH_DATA)
 
     PATH_DATA + '/' + 'raw_wifi_' + DATE_STRING + '.sqlite3'
 
     # Bluetooth Collection
-    print('Collecting Bluetooth')
+    print(f'********** Start collecting bluetooth')
     os.system(f"Bluelog/bluelog -n -t -f -a 5 -d -o {PATH_DATA}/raw_bluelog_{DATE_STRING}.txt")
     time.sleep(1)
 
 # Define a function for optimizing power usage
 def optimize_power_usage():
+    print(f'****** Optimize power usage (disable HDMI and internal wifi) after 60 seconds')
     
     # Disable HDMI completely
     os.system('sudo /opt/vc/bin/tvservice -p && sudo /opt/vc/bin/tvservice -o')
@@ -335,31 +337,28 @@ def start():
     print(f'Wait for 25 seconds for the system to be ready')
     sys.sleep(25)
         
-    # Upload system information on cloud storage
-    print(f'Upload system information on cloud storage')
+    # Upload system information on cloud storage    
     upload_cloud(DATE_STRING)
 
-    # Optimize power usage (disable HDMI and internal wifi) after 60 seconds
-    print(f'Optimize power usage (disable HDMI and internal wifi) after 60 seconds')
+    # Optimize power usage (disable HDMI and internal wifi) after 60 seconds    
     threading.Timer(60, optimize_power_usage)
 
-    # Start collecting bluetooth
-    print(f'Start collecting bluetooth')
+    # Start collecting bluetooth    
     collect_bluetooth(DATE_STRING)
 
     # Configure wlan mode
-    print(f'Configure wlan mode')
+    print(f'******** Configure wlan mode')
     wlan_configs = [configure_wlan_mode(*cfg) for cfg in WLAN_CONFIGS]
 
     # Enable monitor mode    
-    print(f'Enable monitor mode')
+    print(f'********* Enable monitor mode')
     for wlan in wlan_configs:
         subprocess.run(wlan[1], shell=True)  # Enable monitor
         subprocess.run(wlan[2], shell=True)  # Set channel
     time.sleep(5)
 
     # Start collecting wifi
-    print(f'Start collecting wifi')
+    print(f'******** Start collecting wifi')
     stop_writing = writer(DATE_STRING)
     try:
         processes = []
@@ -373,7 +372,7 @@ def start():
             process.join()
 
     except KeyboardInterrupt:
-        print("Interrupted by user (Ctrl+C)")
+        print(f"'******** Interrupted by user (Ctrl+C)")
 
     finally:
         # Stop writing
