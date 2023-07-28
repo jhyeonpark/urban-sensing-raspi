@@ -69,7 +69,7 @@ def run_subprocess(commands, sleep_time = 1):
 def synchronize_time():
 
     # Print it's time to synchronize the time
-    print(f'Synchronize the time')
+    print(f"\n************* Synchronize the time ********** \n")
 
     time.sleep(5)
 
@@ -98,7 +98,7 @@ def create_and_upload_file(DATE_STRING, command, filename_prefix):
 # Define a function for uploading system information on cloud storage
 def upload_cloud(DATE_STRING):
     try:
-        print(f'************** Upload system information on cloud storage')
+        print(f'\n********** Upload system information on cloud storage**********\n')
 
         os.makedirs(PATH_STATS, exist_ok=True)
 
@@ -144,6 +144,7 @@ def hash_mac_address(address):
 
 # Define a function for writing the data
 def writer(DATE_STRING):
+    print(f'\n************ Write WiFi packet data collected **********\n')
 
     # Create a storage for the data
     if not os.path.exists(PATH_DATA):
@@ -308,13 +309,13 @@ def collect_bluetooth(DATE_STRING):
     PATH_DATA + '/' + 'raw_wifi_' + DATE_STRING + '.sqlite3'
 
     # Bluetooth Collection
-    print(f'********** Start collecting bluetooth')
+    print(f'\n********** Write Bluetooth pacekt data collected **********\n')
     os.system(f"Bluelog/bluelog -n -t -f -a 5 -d -o {PATH_DATA}/raw_bluelog_{DATE_STRING}.txt")
     time.sleep(1)
 
 # Define a function for optimizing power usage
 def optimize_power_usage():
-    print(f'****** Optimize power usage (disable HDMI and internal wifi) after 60 seconds')
+    print(f'\n****** Optimize power usage after 60 seconds ******\n')
     
     # Disable HDMI completely
     os.system('sudo /opt/vc/bin/tvservice -p && sudo /opt/vc/bin/tvservice -o')
@@ -325,16 +326,16 @@ def optimize_power_usage():
 def start():
 
     # Print start code
-    print(f'************* Start *************')
+    print(f'\n************* STARTING PROCESS *************\n')
     
     # Synchronize the time
     synchronize_time()
 
-    # Print current time cynchonized
-    print(f'Current time: {dt.datetime.now().isoformat()}')    
+    # Print current time synchonized
+    print(f'Synchonized time: {dt.datetime.now().isoformat()}')    
     
     # Wait for 25 seconds for the system to be ready
-    print(f'Wait for 25 seconds for the system to be ready')
+    print(f'\n************* Wait for 25 seconds for the system to be ready *****\n')
     time.sleep(25)
         
     # Upload system information on cloud storage    
@@ -347,18 +348,16 @@ def start():
     collect_bluetooth(DATE_STRING)
 
     # Configure wlan mode
-    print(f'******** Configure wlan mode')
     wlan_configs = [configure_wlan_mode(*cfg) for cfg in WLAN_CONFIGS]
 
-    # Enable monitor mode    
-    print(f'********* Enable monitor mode')
+    # Enable monitor mode
+    print(f'\n****** Enable monitor mode for WiFi adatapers *****\n')    
     for wlan in wlan_configs:
         subprocess.run(wlan[1], shell=True)  # Enable monitor
         subprocess.run(wlan[2], shell=True)  # Set channel
     time.sleep(5)
 
     # Start collecting wifi
-    print(f'******** Start collecting wifi')
     stop_writing = writer(DATE_STRING)
     try:
         processes = []
@@ -372,7 +371,7 @@ def start():
             process.join()
 
     except KeyboardInterrupt:
-        print(f"'******** Interrupted by user (Ctrl+C)")
+        print(f"\n ******** Interrupted by user (Ctrl+C) ****** \n")
 
     finally:
         # Stop writing
