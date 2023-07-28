@@ -66,7 +66,12 @@ def run_subprocess(commands, sleep_time = 1):
     time.sleep(sleep_time)
 
 # Define a function for synchronizing the time
-def synchronize_time():    
+def synchronize_time():
+
+    # Print it's time to synchronize the time
+    print(f'Synchronize the time')
+
+    sys.sleep(5)
 
     # Set system time using a network time protocol server
     run_subprocess(['sudo', 'ntpdate', '-u', '3.kr.pool.ntp.org'])
@@ -316,35 +321,45 @@ def optimize_power_usage():
     os.system('sudo ifconfig wlan0 down')    
 
 def start():
-    
-    # Wait for 5 seconds for the system to be stable
-    time.sleep(5)
 
+    # Print start code
+    print(f'************* Start *************')
+    
     # Synchronize the time
     synchronize_time()
 
-    # Wait for 20 seconds for the system to be stable
-    time.sleep(20)
+    # Print current time cynchonized
+    print(f'Current time: {dt.datetime.now().isoformat()}')    
     
+    # Wait for 25 seconds for the system to be ready
+    print(f'Wait for 25 seconds for the system to be ready')
+    sys.sleep(25)
+        
     # Upload system information on cloud storage
+    print(f'Upload system information on cloud storage')
     upload_cloud(DATE_STRING)
 
     # Optimize power usage (disable HDMI and internal wifi) after 60 seconds
+    print(f'Optimize power usage (disable HDMI and internal wifi) after 60 seconds')
     threading.Timer(60, optimize_power_usage)
 
     # Start collecting bluetooth
+    print(f'Start collecting bluetooth')
     collect_bluetooth(DATE_STRING)
 
     # Configure wlan mode
+    print(f'Configure wlan mode')
     wlan_configs = [configure_wlan_mode(*cfg) for cfg in WLAN_CONFIGS]
 
     # Enable monitor mode    
+    print(f'Enable monitor mode')
     for wlan in wlan_configs:
         subprocess.run(wlan[1], shell=True)  # Enable monitor
         subprocess.run(wlan[2], shell=True)  # Set channel
     time.sleep(5)
 
     # Start collecting wifi
+    print(f'Start collecting wifi')
     stop_writing = writer(DATE_STRING)
     try:
         processes = []
@@ -358,7 +373,7 @@ def start():
             process.join()
 
     except KeyboardInterrupt:
-        print("Interrupted by user")
+        print("Interrupted by user (Ctrl+C)")
 
     finally:
         # Stop writing
