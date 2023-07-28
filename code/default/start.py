@@ -71,7 +71,7 @@ def synchronize_time():
     # Print it's time to synchronize the time
     print(f'Synchronize the time')
 
-    sys.sleep(5)
+    time.sleep(5)
 
     # Set system time using a network time protocol server
     run_subprocess(['sudo', 'ntpdate', '-u', '3.kr.pool.ntp.org'])
@@ -335,7 +335,7 @@ def start():
     
     # Wait for 25 seconds for the system to be ready
     print(f'Wait for 25 seconds for the system to be ready')
-    sys.sleep(25)
+    time.sleep(25)
         
     # Upload system information on cloud storage    
     upload_cloud(DATE_STRING)
