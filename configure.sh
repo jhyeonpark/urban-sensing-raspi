@@ -43,5 +43,12 @@ sudo systemctl enable sensing.service
 # Start the service
 sudo systemctl start sensing.service
 
+# -------------------------------
+
+sudo chmod 777 /home/pi/data
+sudo chmod 777 /home/pi/stats
+
+# -------------------------------
+
 # Print a message when finished
 echo "Script execution finished. The Sensing.service has been set up and started."
