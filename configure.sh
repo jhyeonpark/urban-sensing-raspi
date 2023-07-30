@@ -24,7 +24,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/home/pi/
-ExecStart=/usr/bin/python3 /home/pi/urban-sensing-raspi/default/start.py
+ExecStart=/usr/bin/python3 /home/pi/urban-sensing-raspi/code/default/start.py
 User=root
 Group=root
 
