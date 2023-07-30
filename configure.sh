@@ -45,6 +45,8 @@ sudo systemctl start sensing.service
 
 # -------------------------------
 
+sudo mkdir /home/pi/data
+sudo mkdir /home/pi/stats
 sudo chmod 777 /home/pi/data
 sudo chmod 777 /home/pi/stats
 
