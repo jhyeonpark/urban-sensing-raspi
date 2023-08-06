@@ -176,7 +176,8 @@ def writer(DATE_STRING):
                         ":access_point_address_randomized,"
                         ":sequence_number,"
                         ":channel,"
-                        ":device_name"
+                        ":device_name,"
+                        ":info"
                         ")"
                     )
                     cursor.execute(insert, item)
@@ -206,7 +207,8 @@ def writer(DATE_STRING):
         "access_point_address_randomized,"
         "sequence_number,"
         "channel,"
-        "device_name"
+        "device_name,"
+        "info"
         ")"
     )
     cursor.execute(create)
@@ -259,7 +261,8 @@ def collect_wifi(interface, channel):
                     'access_point_address_randomized': is_random_mac(frame.mgmt.bssid),
                     'sequence_number': frame.mgmt.sequence_number if hasattr(frame.mgmt, 'sequence_number') else '(n/a)',
                     'channel': channel,
-                    'device_name': socket.gethostname()
+                    'device_name': socket.gethostname(),
+                    'info': info
                 }
 
                 queue.put(record)
@@ -279,7 +282,8 @@ def collect_wifi(interface, channel):
                     'access_point_address_randomized': is_random_mac(frame.data_frame.bssid) if hasattr(frame.data_frame, 'bssid') else '(n/a)',                    
                     'sequence_number': frame.data_frame.seq if hasattr(frame.data_frame, 'seq') else '(n/a)',
                     'channel': channel,
-                    'device_name': socket.gethostname()
+                    'device_name': socket.gethostname(),
+                    'info': info
                 }
                 queue.put(record)
 
