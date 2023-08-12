@@ -2,14 +2,23 @@
 
 # Import libraries
 import os, sys, threading, time, logging, multiprocessing, sqlite3, struct, subprocess, datetime as dt
-import pcapy, dpkt, socket, binascii, traceback, sys, hashlib
+import pcapy, dpkt, socket, binascii, traceback, sys, hashlib, queue, argparse
 from multiprocessing import Process, Queue, Event
 
 # Set constants
 PATH_DROPBOX = '/home/pi/Dropbox-Uploader/dropbox_uploader.sh' # Path of Dropbox-Uploader
 PATH_DATA = '/home/pi/data' # Path of data storage
 PATH_STATS = '/home/pi/stats' # Path of stats storage
+SENSOR_NAME = "raspberrypi"
+
+# Check if the configuration file exists
+if os.path.exists('/home/pi/sensor_name.conf'):
+    # If it does, read the sensor name from it
+    with open('/home/pi/sensor_name.conf', 'r') as f:
+        SENSOR_NAME = f.readline().strip()
+
 DATE_STRING = time.strftime("%y%m%d") + "HMS" + time.strftime("%H%M%S") # Date string
+FILE_STRING = SENSOR_NAME + "_" + DATE_STRING # File string
 
 # Set the logging format (subtype for management frame)
 SUBTYPES_MANAGEMENT = {
@@ -57,7 +66,11 @@ SUBTYPES_DATA = {
     14: 'qos-contention-free-poll-empty'
 }
 
-queue = multiprocessing.Queue()
+packet_queue = multiprocessing.Queue()
+
+# Define a consistent print border for messages
+def print_border(message):
+    print(f"\n{'='*20} {message} {'='*20}\n")
 
 # Define a function for running a subprocess
 def run_subprocess(commands, sleep_time = 1):
@@ -68,12 +81,14 @@ def run_subprocess(commands, sleep_time = 1):
 # Define a function for synchronizing the time
 def synchronize_time():
 
-    # Print it's time to synchronize the time
-    print(f"\n************* Synchronize the time ********** \n")
+    # Print it's time to synchronize the time using =
+    print_border('Synchronize the time')
 
-    time.sleep(5)
+    time.sleep(10)
 
     # Set system time using a network time protocol server
+    run_subprocess(['sudo', 'ntpdate', '-u', '3.kr.pool.ntp.org'])
+    time.sleep(1)
     run_subprocess(['sudo', 'ntpdate', '-u', '3.kr.pool.ntp.org'])
 
     # Set the time zone to Asia/Seoul
@@ -89,21 +104,21 @@ def upload_file_to_dropbox(file_path, destination):
         raise
 
 # Define a function for creating and uploading files to Dropbox
-def create_and_upload_file(DATE_STRING, command, filename_prefix):
-    file_path = os.path.join(PATH_STATS, f'{filename_prefix}_{DATE_STRING}.txt')
+def create_and_upload_file(FILE_STRING, command, filename_prefix):
+    file_path = os.path.join(PATH_STATS, f'{filename_prefix}_{FILE_STRING}.txt')
     with open(file_path, 'w') as file:
         subprocess.run(command, stdout=file, check=True)
     upload_file_to_dropbox(file_path, '/')
 
 # Define a function for uploading system information on cloud storage
-def upload_cloud(DATE_STRING):
+def upload_cloud(FILE_STRING):
     try:
-        print(f'\n********** Upload system information on cloud storage**********\n')
+        print_border('Upload system information on cloud storage')
 
         os.makedirs(PATH_STATS, exist_ok=True)
 
-        create_and_upload_file(DATE_STRING, ['df', '-h'], 'storage')
-        create_and_upload_file(DATE_STRING, ['ls', '-alh'], 'list')
+        create_and_upload_file(FILE_STRING, ['df', '-h'], 'storage')
+        create_and_upload_file(FILE_STRING, ['ls', '-alh'], 'list')
 
         print('Finish upload on cloud')
     except Exception as e:
@@ -132,7 +147,7 @@ def is_random_mac(address):
 # Define a function for hashing the MAC address
 def hash_mac_address(address):
     # Convert the MAC address to a string
-    mac_address = ':'.join('%02x' % b for b in address)
+    mac_address = ':'.join('%02x' % b if isinstance(b, int) else b for b in address)
 
     # If the MAC address is broadcast, return the MAC address as it is
     if mac_address == "ff:ff:ff:ff:ff:ff" or mac_address is None:
@@ -143,14 +158,14 @@ def hash_mac_address(address):
     return hashed_mac_address
 
 # Define a function for writing the data
-def writer(DATE_STRING):
-    print(f'\n************ Write WiFi packet data collected **********\n')
+def writer(FILE_STRING):
+    print_border('Write WiFi packet data collected')
 
     # Create a storage for the data
     if not os.path.exists(PATH_DATA):
         os.makedirs(PATH_DATA)
 
-    db = sqlite3.connect(PATH_DATA + '/' + 'raw_wifi_' + DATE_STRING + '.sqlite3') # Define a storage
+    db = sqlite3.connect(PATH_DATA + '/' + 'raw_wifi_' + FILE_STRING + '.sqlite3') # Define a storage
     db.text_factory = str
 
     def write(stop):
@@ -158,8 +173,8 @@ def writer(DATE_STRING):
             try:
                 logging.info('Writing...')
                 cursor = db.cursor()
-                for _ in range(0, queue.qsize()):
-                    item = queue.get_nowait()
+                for _ in range(0, packet_queue.qsize()):
+                    item = packet_queue.get_nowait()
                     insert = (
                         "insert into packets values"
                         "("
@@ -176,14 +191,15 @@ def writer(DATE_STRING):
                         ":access_point_address_randomized,"
                         ":sequence_number,"
                         ":channel,"
-                        ":device_name"
+                        ":sensor_name,"
+                        ":info"
                         ")"
                     )
                     cursor.execute(insert, item)
                 db.commit()
                 cursor.close()
                 time.sleep(1)  # seconds
-            except _queue.Empty:
+            except queue.Empty:
                 pass
             except KeyboardInterrupt:
                 pass
@@ -206,7 +222,8 @@ def writer(DATE_STRING):
         "access_point_address_randomized,"
         "sequence_number,"
         "channel,"
-        "device_name"
+        "sensor_name,"
+        "info"
         ")"
     )
     cursor.execute(create)
@@ -216,7 +233,7 @@ def writer(DATE_STRING):
     multiprocessing.Process(target=write, args=[stop]).start()
     return stop
 
-def collect_wifi(interface, channel):
+def collect_wifi(interface, channel, replace_info = False):
     max_packet_size = -1  # bytes
     promiscuous = 1  # boolean masquerading as an int
     timeout = 1  # milliseconds
@@ -231,75 +248,70 @@ def collect_wifi(interface, channel):
     packets.setfilter('')  # bpf syntax (empty string = everything)
 
     def loops(header, data):
+        timestamp = dt.datetime.now().isoformat()
         try:
-            timestamp = dt.datetime.now().isoformat()
-            try:
-                packet = dpkt.radiotap.Radiotap(data)
-            except dpkt.dpkt.UnpackError as e:
-                print(f"Failed to unpack packet: {binascii.hexlify(data)}")
-                raise e
-
-            packet_signal = packet.ant_sig.db  # dBm            
+            packet = dpkt.radiotap.Radiotap(data)
             frame = packet.data
-            packet_len = socket.ntohs(packet.length)
-            info = binascii.hexlify(data).decode()
 
-            if frame.type == dpkt.ieee80211.MGMT_TYPE and SUBTYPES_MANAGEMENT[frame.subtype] != 'beacon':
+            if frame.type == dpkt.ieee80211.MGMT_TYPE and SUBTYPES_MANAGEMENT.get(frame.subtype) != 'beacon':
                 record = {
                     'timestamp': timestamp,
                     'type': 'management',
-                    'subtype': SUBTYPES_MANAGEMENT[frame.subtype],
-                    'strength': packet_signal,
+                    'subtype': SUBTYPES_MANAGEMENT.get(frame.subtype, 'unknown'),
+                    'strength': packet.ant_sig.db,  # dBm
                     'source_address': hash_mac_address(frame.mgmt.src),
                     'source_address_randomized': is_random_mac(frame.mgmt.src),
                     'destination_address': hash_mac_address(frame.mgmt.dst),
-                    'destination_address_randomized': is_random_mac(frame.mgmt.dst),
-                    'access_point_name': frame.ssid.data if hasattr(frame, 'ssid') else '(n/a)',
+                    'destination_address_randomized': is_random_mac(frame.mgmt.dst),                                       
+                    'access_point_name':  frame.ssid.data.decode('utf-8') if hasattr(frame, 'ssid') and frame.ssid.data else '(n/a)',
                     'access_point_address': hash_mac_address(frame.mgmt.bssid),
                     'access_point_address_randomized': is_random_mac(frame.mgmt.bssid),
-                    'sequence_number': frame.mgmt.sequence_number if hasattr(frame.mgmt, 'sequence_number') else '(n/a)',
+                    'sequence_number': getattr(frame.mgmt, 'sequence_number', ''),
                     'channel': channel,
-                    'device_name': socket.gethostname()
+                    'sensor_name': SENSOR_NAME,
+                    'info': "" if replace_info else binascii.hexlify(data).decode()
                 }
-
-                queue.put(record)
+                packet_queue.put(record)
 
             elif frame.type == dpkt.ieee80211.DATA_TYPE:
                 record = {
                     'timestamp': timestamp,
                     'type': 'data',
-                    'subtype': SUBTYPES_DATA[frame.subtype],
-                    'strength': packet_signal,
-                    'source_address': hash_mac_address(frame.data_frame.src),
-                    'source_address_randomized': is_random_mac(frame.data_frame.src),
-                    'destination_address': hash_mac_address(frame.data_frame.dst),
-                    'destination_address_randomized': is_random_mac(frame.data_frame.dst),
+                    'subtype': SUBTYPES_DATA.get(frame.subtype, 'unknown'),
+                    'strength': packet.ant_sig.db,  # Ensure 'packet_signal' is defined elsewhere
+                    'source_address': hash_mac_address(getattr(frame.data_frame, 'src', '')),
+                    'source_address_randomized': is_random_mac(getattr(frame.data_frame, 'src', '')),
+                    'destination_address': hash_mac_address(getattr(frame.data_frame, 'dst', '')),
+                    'destination_address_randomized': is_random_mac(getattr(frame.data_frame, 'dst', '')),
                     'access_point_name': '(n/a)',  # not available in data packets
-                    'access_point_address': hash_mac_address(frame.data_frame.bssid) if hasattr(frame.data_frame, 'bssid') else '(n/a)',
-                    'access_point_address_randomized': is_random_mac(frame.data_frame.bssid) if hasattr(frame.data_frame, 'bssid') else '(n/a)',                    
-                    'sequence_number': frame.data_frame.seq if hasattr(frame.data_frame, 'seq') else '(n/a)',
+                    'access_point_address': hash_mac_address(getattr(frame.data_frame, 'bssid', '(n/a)')),
+                    'access_point_address_randomized': is_random_mac(getattr(frame.data_frame, 'bssid', '(n/a)')),                    
+                    'sequence_number': getattr(frame.data_frame, 'sequence_number', ''),
                     'channel': channel,
-                    'device_name': socket.gethostname()
+                    'sensor_name': SENSOR_NAME,                    
+                    'info': "" if replace_info else binascii.hexlify(data).decode()
                 }
-                queue.put(record)
-
+                packet_queue.put(record)
 
         except Exception as e:
             logging.error(traceback.format_exc())
 
     packets.loop(-1, loops)
 
+
 # Define a function for collecting bluetooth
-def collect_bluetooth(DATE_STRING):
-    
+def collect_bluetooth(FILE_STRING):
     if not os.path.exists(PATH_DATA):
         os.makedirs(PATH_DATA)
 
-    PATH_DATA + '/' + 'raw_wifi_' + DATE_STRING + '.sqlite3'
-
     # Bluetooth Collection
-    print(f'\n********** Write Bluetooth pacekt data collected **********\n')
-    os.system(f"Bluelog/bluelog -n -t -f -a 5 -d -o {PATH_DATA}/raw_bluelog_{DATE_STRING}.txt")
+    print(f'\n********** Write Bluetooth packet data collected **********\n')
+    try:
+        os.system(f"Bluelog/bluelog -n -t -f -a 5 -d -o {PATH_DATA}/raw_bluetooth_{FILE_STRING}.txt")
+    except KeyboardInterrupt:
+        print("Interrupt detected. Killing Bluelog...")
+        os.system("Bluelog/bluelog -k")
+        print("Bluelog killed.")
     time.sleep(1)
 
 # Define a function for optimizing power usage
@@ -313,60 +325,79 @@ def optimize_power_usage():
     os.system('sudo ifconfig wlan0 down')    
 
 def start():
+    # Print messages using = 'starting sensor' with three lines above and below
+    print_border(f"🚀 Starting Sensor: '{SENSOR_NAME}' 🚀")
 
-    # Print start code
-    print(f'\n************* STARTING PROCESS (Device name is {socket.gethostname()} *************\n')
-    
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Start the WiFi and Bluetooth collector")
+    parser.add_argument("-i", "--info", action="store_true", help="Keep the 'info' column without replacing it with NULL")
+    parser.add_argument("-b", "--bluetooth", action="store_true", help="Enable Bluetooth collection")
+    args = parser.parse_args()
+
+  # Print messages based on provided arguments
+    if args.bluetooth:
+        print("-b: Bluetooth collection will be activated.")
+    elif args.info:
+        print("-i: The 'info' column will be kept without replacing it with NULL.")
+    else:
+        print("Note: If you want to collect Bluetooth data, use the '-b' option.")
+        print("      If you want to keep the 'info' column without replacing it with NULL, use the '-i' option.")
+
     # Synchronize the time
     synchronize_time()
+    print_border(f"Synchonized time: {dt.datetime.now().isoformat()}")
+ 
 
-    # Print current time synchonized
-    print(f'Synchonized time: {dt.datetime.now().isoformat()}')    
-    
     # Wait for 25 seconds for the system to be ready
-    print(f'\n************* Wait for 25 seconds for the system to be ready *****\n')
+    print_border("Wait for 25 seconds for the system to be ready")
     time.sleep(25)
         
     # Upload system information on cloud storage    
-    upload_cloud(DATE_STRING)
+    upload_cloud(FILE_STRING)
 
     # Optimize power usage (disable HDMI and internal wifi) after 60 seconds    
     threading.Timer(60, optimize_power_usage)
 
-    # Start collecting bluetooth    
-    collect_bluetooth(DATE_STRING)
+    # Start collecting bluetooth only if -b option is provided
+    if args.bluetooth:
+        collect_bluetooth(FILE_STRING)
 
     # Configure wlan mode
     wlan_configs = [configure_wlan_mode(*cfg) for cfg in WLAN_CONFIGS]
 
     # Enable monitor mode
-    print(f'\n****** Enable monitor mode for WiFi adatapers *****\n')    
+    print_border("Enable monitor mode for WiFi adatapers")
     for wlan in wlan_configs:
         subprocess.run(wlan[1], shell=True)  # Enable monitor
         subprocess.run(wlan[2], shell=True)  # Set channel
     time.sleep(5)
 
     # Start collecting wifi
-    stop_writing = writer(DATE_STRING)
+    stop_writing = writer(FILE_STRING)
     try:
         processes = []
         for i, wlan in enumerate(wlan_configs):            
             print(f'start wlan{i+1}')
-            process = Process(target = collect_wifi, args=(wlan[0], wlan[2].split()[-1]))
+            process = Process(target=collect_wifi, args=(wlan[0], wlan[2].split()[-1], not args.info))
             processes.append(process)
             process.start()
 
         for process in processes:
             process.join()
 
+
     except KeyboardInterrupt:
-        print(f"\n ******** Interrupted by user (Ctrl+C) ****** \n")
+        print_border("Interrupted by user (Ctrl+C)")
 
     finally:
         # Stop writing
         stop_writing.set()
         # Disable monitor mode
         for wlan in wlan_configs:
-            subprocess.run(wlan[3].split())
+            subprocess.run(wlan[3], shell=True)
+        # Kill Bluelog if it's running
+        print("\nUser interrupt detected. Cleaning up...")
+        os.system("Bluelog/bluelog -k")  # Kill Bluelog if it's running
+        print("Cleaned up resources. Exiting...")
 
 start()
