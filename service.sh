@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Ask the user for the path to start.py
+read -p "Please enter the path to start.py (default: /home/pi/urban-sensing-raspi/code/start.py): " start_path
+
+# Use default path if no path provided
+if [ -z "$start_path" ]; then
+    start_path="/home/pi/urban-sensing-raspi/code/start.py"
+fi
+
 # Create service file
 echo "Creating the Wifi monitoring service file..."
 
@@ -9,7 +17,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/home/pi/
-ExecStart=/usr/bin/python3 /home/pi/urban-sensing-raspi/code/default/start.py
+ExecStart=/usr/bin/python3 $start_path
 User=root
 Group=root
 
@@ -27,3 +35,7 @@ sudo systemctl enable sensing.service
 
 # Start the service
 sudo systemctl start sensing.service
+
+# Final message to the user
+echo "The urban-sensing-service has been set up successfully with the script at: $start_path"
+echo "The service is now running. You can check its status with 'sudo systemctl status sensing.service'."
