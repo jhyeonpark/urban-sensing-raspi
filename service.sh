@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Ask the user for the path to start.py
-read -p "Please enter the path to start.py (default: /home/pi/urban-sensing-raspi/code/default/start.py): " start_path
+read -p "Please enter the path to start.py (default: /home/pi/urban-sensing-raspi/code/start.py): " start_path
 
 # Use default path if no path provided
 if [ -z "$start_path" ]; then
-    start_path="/home/pi/urban-sensing-raspi/code/default/start.py"
+    start_path="/home/pi/urban-sensing-raspi/code/start.py"
 fi
 
 # Check if the provided path exists
