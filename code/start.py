@@ -343,14 +343,16 @@ def start():
         print("Note: If you want to collect Bluetooth data, use the '-b' option.")
         print("      If you want to keep the 'info' column without replacing it with NULL, use the '-i' option.")
 
+    time.sleep(15)
+
     # Synchronize the time
     synchronize_time()
     print_border(f"Synchonized time: {dt.datetime.now().isoformat()}")
  
 
     # Wait for 25 seconds for the system to be ready
-    print_border("Wait for 25 seconds for the system to be ready")
-    time.sleep(25)
+    print_border("Wait for 30 seconds for the system to be ready")
+    time.sleep(30)
         
     # Upload system information on cloud storage    
     upload_cloud(FILE_STRING)
