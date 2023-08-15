@@ -12,9 +12,9 @@ PATH_STATS = '/home/pi/stats' # Path of stats storage
 SENSOR_NAME = "raspberrypi"
 
 # Check if the configuration file exists
-if os.path.exists('/home/pi/sensor_name.conf'):
+if os.path.exists('/home/pi/urban-sensing-raspi/sensor_name.conf'):
     # If it does, read the sensor name from it
-    with open('/home/pi/sensor_name.conf', 'r') as f:
+    with open('/home/pi/urban-sensing-raspi/sensor_name.conf', 'r') as f:
         SENSOR_NAME = f.readline().strip()
 
 DATE_STRING = time.strftime("%y%m%d") + "HMS" + time.strftime("%H%M%S") # Date string
